@@ -20,25 +20,76 @@ from cnn import CNN
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyperparameters
-in_channels = 1
+# input_size = 427
+in_channels = 3
 num_classes = 10
 learning_rate = 0.001
 batch_size = 64
-num_epochs = 3
+num_epochs = 1
+
+# Initialize network
+# model = CNN(in_channels=in_channels, num_classes=num_classes).to(device)
+
+model = CNN()
+x=torch.randn(64,4,28,28)
+print(model(x).shape)
+model.classifier = nn.Sequential(nn.Linear(512, 100), nn.ReLU(), nn.Linear(100, 10))
+model.to(device)
+
+my_transforms = transforms.Compose(
+    [  # Compose makes it possible to have many transforms
+        transforms.Resize((36, 36)),  # Resizes (32,32) to (36,36)
+        transforms.RandomCrop((32, 32)),  # Takes a random (32,32) crop
+        transforms.ColorJitter(brightness=0.5),  # Change brightness of image
+        transforms.RandomRotation(
+            degrees=45
+        ),  # Perhaps a random rotation from -45 to 45 degrees
+        transforms.RandomHorizontalFlip(
+            p=0.5
+        ),  # Flips the image horizontally with probability 0.5
+        transforms.RandomVerticalFlip(
+            p=0.05
+        ),  # Flips image vertically with probability 0.05
+        transforms.RandomGrayscale(p=0.2),  # Converts to grayscale with probability 0.2
+        transforms.ToTensor(),  # Finally converts PIL image to tensor so we can train w. pytorch
+        transforms.Normalize(
+            mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]
+        ),  # Note: these values aren't optimal
+    ]
+)
 
 dataset = CustomDataset(csv_file=r'database.csv', root_dir=r'processed', transform=transforms.ToTensor())
-train_set, test_set = torch.utils.data.random_split(dataset, [329, 100])
+train_set, test_set = torch.utils.data.random_split(dataset, [326, 100])
 
 train_Loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True)
 test_Loader=DataLoader(dataset=test_set, batch_size=batch_size, shuffle=True)
 
-
-# Initialize network
-model = CNN(in_channels=in_channels, num_classes=num_classes).to(device)
-
-# Loss and optimizer
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Train Network
+for epoch in range(num_epochs):
+    losses = []
+
+    for batch_idx, (data, targets) in enumerate(train_Loader):
+        # Get data to cuda if possible
+        data = data.to(device=device)
+        targets = targets.to(device=device)
+
+        # forward
+        scores = model(data)
+        loss = criterion(scores, targets)
+
+        losses.append(loss.item())
+        # backward
+        optimizer.zero_grad()
+        loss.backward()
+
+        # gradient descent or adam step
+        optimizer.step()
+
+    print(f"Cost at epoch {epoch} is {sum(losses)/len(losses):.5f}")
+
 
 # Train Network
 for epoch in range(num_epochs):
